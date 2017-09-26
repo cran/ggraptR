@@ -1,98 +1,88 @@
+library(shinyBS)
+library(shinyjs)
+
 shinyUI(bootstrapPage(
-  
   headerPanel(windowTitle="ggraptR", title=div()),
-  
   tags$head(tags$style(
     type="text/css",
-    "#rappy img {max-width: 95%; max-height: 140px;}" #height: 100%; width: 100%
-  )),  
+    "hr {margin-top: 15px; margin-bottom: 15px; border-color: #d9d9d9}",
+    ".sbs-panel-group {margin-bottom: 5px;}",
+    # ".shiny-split-layout #datasetNameCtrl { overflow: visible; }",
+    "#rappy img {max-width: 100%;}"  # "#react_row {max-width: 100%;}"
+    )),
   
   sidebarPanel(
-    
-    splitLayout(cellWidths = c("25%", "75%"),
-    
-    imageOutput("rappy", height = "100%", width = "100%"),
-    div(
-        ## use shinyjs to disable/enable buttons w/ JS
-        shinyjs::useShinyjs(),
+    splitLayout(
+      cellWidths = c("25%", "75%"),
+      imageOutput("rappy", height = "100%"),
+      div(
+        # use shinyjs to disable/enable buttons w/ JS
+        useShinyjs(),
         
-        uiOutput('resetable_input'),
-        actionButton("reset_input", "Reset inputs", width = '50%'),
+        fluidRow(
+          column(9, uiOutput('datasetNameCtrl'),
+                 style="padding-right:5px; height: 0px"),
+          column(2,
+                 uiOutput('uploadDataCtrl', inline = T),
+                 uiOutput('datasetOptionsCtrl', inline = T),
+                 style="padding-top:25px;padding-left:5px;"),
+          style='width:100%'),
         
-        br(),
-        br(),
+        conditionalPanel(
+          condition = 'input.conditionedPanels == "tableTab"',
+          uiOutput('dlBtnCSV')),
         
-        ## reactive vs. upon-manual-submit calculations
-        uiOutput('submitCtrl'),
+        conditionalPanel(
+          condition = 'input.conditionedPanels != "codeTab"',
+          hr(),
+          fluidRow(
+            column(6, uiOutput('submitCtrl')), 
+            column(6, uiOutput('reactiveCtrl')),
+            id='react_row'), 
+          actionButton("reset_input", "Reset inputs", width = "100%")),
         
-        ## enable reactive option
-        uiOutput('reactiveCtrl'))
-    ),
+        conditionalPanel(
+          condition = 'input.conditionedPanels == "codeTab"',
+          div(br(), style='padding-bottom: 120px')),
+        
+        style='padding-left: 10px; padding-right: 3px; overflow: hidden;')),
     hr(),
     
-    ## dataset selection
-    uiOutput('datasetCtrl'),
-    ## "view plot" button if import tab
+    #### left controls ####
     conditionalPanel(
-      condition = 'input.conditionedPanels=="importTab"',
-      ## view plot button
-      actionButton("viewPlot", label = "View Plot")
-    ),
+      condition = 'input.conditionedPanels == "plotTab"',
+      source('./views/plotCtrlsUI.R', local=TRUE)$value),
     
-    hr(),
-    
-    ## file input/upload panel
     conditionalPanel(
-      condition = 'input.conditionedPanels=="importTab"',
-      source('./views/import/dataImportCtrlsUI.R', local=TRUE)$value
-    ),  # end of file input/upload panel
+      condition = 'input.conditionedPanels == "tableTab"',
+      source('./views/tableCtrlsUI.R', local=TRUE)$value),
     
-    ## aggregation options
     conditionalPanel(
-      condition = 'input.conditionedPanels=="tableTab"',
-      source('./views/table/manAggCtrlsUI.R', local=TRUE)$value
-    ),  # end of conditionalPanel for aggregation options
-    
-    ## plot options
-    conditionalPanel(
-      condition = 'input.conditionedPanels=="plotTab"',
-      source('./views/plot/plotCtrlsUI.R', local=TRUE)$value
-    )  # end of conditionalPanel for plot options
-
-  ),  # end of sidebarPanel
+      condition = 'input.conditionedPanels == "codeTab"',
+      source('./views/codeCtrlsUI.R', local=TRUE)$value)),
   
+  #### right view ####
   mainPanel(
-    #import modal panels
-    source('./views/modals/modalPanels.R',local=TRUE)$value,
+    source('./views/modalPanels.R',local=TRUE)$value,
     
-    tabsetPanel(type = "tabs",
-                tabPanel("Plot", 
-                         br(),
-                         uiOutput('exportPlotCtl'),
-                         br(),
-                         plotOutput("plot", brush=brushOpts(id="zoom_brush", resetOnNew=TRUE)),
-                         value='plotTab'
-                ),
-                tabPanel("Table", 
-                         br(),
-                         uiOutput('dlBtnCSV'),
-                         br(),
-                         DT::dataTableOutput("displayTable"),
-                         value='tableTab'
-                ),
-                tabPanel('Import',
-                         tags$head(tags$script('
-                                     Shiny.addCustomMessageHandler("myCallbackHandler",
-                                       function(typeMessage) {
-                                          if(typeMessage == 1){
-                                          $("a:contains(Plot)").click();
-                                          }
-                                          });
-                                          ')),
-                         value='importTab'
-                ),
-                id = "conditionedPanels"
-    )
-  )  
-  
-))
+    tabsetPanel(
+      type = "tabs",
+      tabPanel(
+        "Plot", br(), br(),
+        plotOutput("plot", brush=brushOpts(id="zoom_brush",resetOnNew=T)),
+        uiOutput("itersToDrawCtrl", 
+                 style="opacity: 0; pointer-events: none"),
+        value='plotTab'), 
+      
+      tabPanel(
+        "Table", br(), br(),
+        DT::dataTableOutput("displayTable"),
+        value='tableTab'),
+      
+      tabPanel(
+        'Code', br(),
+        strong('Plot log (latest at the top):'),
+        br(), br(),
+        htmlOutput('plotLog'),
+        value='codeTab'),
+      id = "conditionedPanels"))))

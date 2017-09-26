@@ -1,127 +1,90 @@
-
-## display plot and data table
+# display plot or table
 observeEvent(input$reactive, {
-  shinyBS::updateButton(session, "submit", disabled = input$reactive==TRUE)
+  updateButton(session, "submit", disabled = input$reactive)
   
   if (input$reactive) {
-
-    ## display plot reactively
-    output$plot <- renderPlot({
-      plotInput()
+    output$plot <- renderPlot({  # display plot reactively
+      buildPlot()
     }, height=700)
-    
-    ## display data table reactively
-    output$displayTable <- DT::renderDataTable({
-      DT::datatable(manAggDataset(), filter='bottom')
+    output$displayTable <- DT::renderDataTable({  # display data table reactively
+      DT::datatable(manAggDataset(), filter='top', 
+                    # remove options to get back the global table search textInput
+                    options = list(sDom  = '<"top">lrt<"bottom">ip'))
     })
-    
   } else {
-
-    ## display plot upon submit
-    output$plot <- renderPlot({
-      input$submit
-      isolate(plotInput())
+    output$plot <- renderPlot({  # display plot upon submit
+      c(input$submit, reactVals$readyToDraw)  # dependencies
+      isolate(buildPlot())
     }, height=700)
-    
-    ## display data table upon submit
-    output$displayTable <- DT::renderDataTable({
+    output$displayTable <- DT::renderDataTable({  # display data table upon submit
       input$submit
-      isolate(DT::datatable(manAggDataset(), filter='bottom'))
+      isolate(DT::datatable(manAggDataset(), filter='top',
+                            options = list(sDom  = '<"top">lrt<"bottom">ip')))
     })
   }
 })
 
-## view plot from import tab
+# delay plot building until all controls will be ready
 observe({
-  if(input$viewPlot > 0){
-    session$sendCustomMessage("myCallbackHandler", "1")
-  }
+  nInp <- input$itersToDrawInp
+  isolate({
+    n <- reactVals$itersToDraw
+    if (notNulls(nInp, n) && n != 0) reactVals$itersToDraw <- n - 1
+  })
 })
 
+# trigger update for plopType options
+observe({
+  pTypes <- plotTypes()
+  isolate({
+    if (is.null(dataset())) return()
+    allDefTypes <- unlist(getStructListNames(curDatasetPlotInputs()))
+    needOneGroupOpts <- length(pTypes) == 1 && 
+      length(plotTypesOpts()) == length(allDefTypes)
+    
+    if (is.null(pTypes) || needOneGroupOpts) {
+      reactVals$plotTypeOptsTrigger <- Sys.time()  # Sys.time() for trigger
+    }
+  })
+})
+
+# reset inputs
 observeEvent(input$reset_input, {
   updateCheckboxInput(session, "reactive", value = FALSE)
   Sys.sleep(0.5)
-  shinyjs::reset("dataset")
-  shinyjs::reset("plotType")
-  shinyjs::reset('rawVsManAgg')
-  shinyjs::reset('plotAggMeth')
-  shinyjs::reset('x')
-  shinyjs::reset('y')
-  shinyjs::reset('color')
-  shinyjs::reset('treatAsFacVarCol')
-  shinyjs::reset('fill')
-  shinyjs::reset('position')
-  shinyjs::reset('jitter')
-  shinyjs::reset('smooth')
-  shinyjs::reset('size')
-  shinyjs::reset('shape')
-  shinyjs::reset('binWidth')
-  shinyjs::reset('densBlkLineCond')
-  shinyjs::reset('ptsOverlayCond')
-  shinyjs::reset('facetRow')
-  shinyjs::reset('facetCol')
-  shinyjs::reset('facetWrap')
-  shinyjs::reset('facetScale')
-  shinyjs::reset('alpha')
-  shinyjs::reset('sizeMag')
-  shinyjs::reset('coordFlip')
-  shinyjs::reset('plotAddAggBy')
-  shinyjs::reset('xlim')
-  shinyjs::reset('ylim')
-  shinyjs::reset('plotTitle')
-  shinyjs::reset('xLabel')
-  shinyjs::reset('yLabel')
-  shinyjs::reset('labelFontFamily')
-  shinyjs::reset('labelFontFace')
-  shinyjs::reset('labelFontSize')
-  shinyjs::reset('labelFontColor')
-  shinyjs::reset('hjust')
-  shinyjs::reset('vjust')
-  shinyjs::reset('plotTheme')
-  shinyjs::reset('showAesWgts')
-  shinyjs::reset('showFacetWgts')
-  shinyjs::reset('showXYRangeWgts')
-  shinyjs::reset('showPlotAggWgt')
-  shinyjs::reset('showThemeWgts')
-  shinyjs::reset('showDSTypeAndPlotAggWgts')
+  # setdiff prevents very unstable bug of infinite recursive refresh of plotTypes
+  for (id in setdiff(names(input), 'datasetName')) {
+    reset(id)
+  }
   Sys.sleep(0.5)
   updateCheckboxInput(session, "reactive", value = TRUE)
 })
 
-## disable/enable toggle between facet grid and facet wrap
-observeEvent(c(input$facetCol, input$facetRow, input$facetWrap), {
-  if (input$showFacetWgts) {
-    if (noFacetSelected()) {
-      shinyjs::enable('facetCol')
-      shinyjs::enable('facetRow')
-      shinyjs::enable('facetWrap')
-    } else if (facetGridSelected()) {
-      shinyjs::enable('facetCol')
-      shinyjs::enable('facetRow')
-      shinyjs::disable('facetWrap')
-    } else if (facetWrapSelected()) {
-      shinyjs::disable('facetCol')
-      shinyjs::disable('facetRow')
-      shinyjs::enable('facetWrap')
-    } 
+# disable/enable toggle between facet grid and facet wrap
+observeEvent(buildPlot(), {
+  if (!isFacetSelected()) {
+    enable('facetRow')
+    enable('facetCol')
+    enable('facetWrap')
+  } else if (facetGridSelected()) {
+    enable('facetRow')
+    enable('facetCol')
+    disable('facetWrap')
+  } else if (facetWrapSelected()) {
+    disable('facetRow')
+    disable('facetCol')
+    enable('facetWrap')
   }
 })
 
-## disable plot title, x and y label text fields when reactivity is enabled
-# observeEvent(c(input$plotTitle, input$xLabel, input$yLabel), {
-#   if (input$showThemeWgts) {
-#     if (plotLabelWidgetsLoaded()) {
-#       if (input$reactive) {
-#         print('hi')
-#         disable('plotTitle')
-#         disable('xLabel')
-#         disable('yLabel')
-#       } else {
-#         print('bye')
-#         enable('plotTitle')
-#         enable('xLabel')
-#         enable('yLabel')
-#       }
-#     }
-#   }
-# })
+# collapse all extraPlotBlocks after init
+observeEvent(buildPlot(), ({
+  if (length(reactVals$log) == 1) {
+    updateCollapse(session, "extraPlotBlocks", close = input$extraPlotBlocks)
+  }
+}))
+
+# to prevent aggregated and limited dataframes collision
+observeEvent(input$displayTable_search_columns, {
+  if (tolower(plotAggMeth()) != 'none') reset('plotAggMeth')
+})

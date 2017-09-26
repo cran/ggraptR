@@ -1,191 +1,85 @@
-#### display conditional reactives
+#### main ####
+displayXCond <- reactive({
+  'x' %in% plotInputs()
+})
 
-## display y condition reactive
 displayYCond <- reactive({
-  if (is.null(input$plotType)) return()  
-  display <- TRUE
-  return (!(input$plotType %in% c('histogram', 'density')))
+  # y() exists only when x(). y options must be different from selected x value 
+  # so it does not make sense to render y before x is ready
+  displayXCond() && !is.null(x()) && 'y' %in% plotInputs()
 })
 
-## display color condition reactive
-displayColCond <- reactive({
-  if (is.null(input$plotType)) return()
-  if (is.null(input$showAesWgts)) return()
-  if (input$showAesWgts) 
-    return (any(input$plotType %in% c('line', 'scatter', 'path')))
+displayGgpairsColumnsCond <- reactive({
+  'pairs' %in% plotTypes()
 })
 
-## display treat-as-a-factor-variable (for color) condition reactive
-displayTreatAsFacVarColCond <- reactive({
-  if (is.null(input$plotType)) return()
-  if (is.null(input$showAesWgts)) return()
-  if (input$showAesWgts)
-    return (any(input$plotType %in% c('scatter'))) 
+displayColorCond <- reactive({
+  'color' %in% plotInputs()
 })
 
-## display fill condition reactive
+displayTreatAsFactorCond <- reactive({
+  'treatColorAsFactor' %in% plotInputs() && 
+    !is.null(color()) && color() %in% isolate(numericVars())
+})
+
 displayFillCond <- reactive({
-  if (is.null(input$plotType)) return()
-  if (is.null(input$showAesWgts)) return()
-  if (input$showAesWgts)
-    return (any(input$plotType %in% c('box', 'histogram', 'bar', 'density')))
+  'fill' %in% plotInputs()
 })
 
-
-## display position condition reactive
-displayPosCond <- reactive({
-  if (is.null(input$plotType)) return()
-  if (is.null(input$showAesWgts)) return()
-  if (input$showAesWgts)
-    return (any(input$plotType %in% c('histogram', 'bar')))
-})
-
-## display shape condition reactive
-displayShapeCond <- reactive({
-  if (is.null(input$plotType)) return()  
-  if (is.null(input$showAesWgts)) return()
-  display <- FALSE
-  if (input$plotType=='scatter') {
-    display <- input$showAesWgts
-  } else if (any(input$plotType %in% c('line', 'path'))) {
-    if (is.null(input$ptsOverlayCond)) return()
-    if (input$ptsOverlayCond) display <- input$showAesWgts
-  }
-  display
-})
-
-## display size condition reactive
 displaySizeCond <- reactive({
-  if (is.null(input$plotType)) return()
-  if (is.null(input$showAesWgts)) return()
-  display <- FALSE
-  if (input$plotType=='scatter') {
-    display <- input$showAesWgts
-  } else if (any(input$plotType %in% c('line', 'path'))) {
-    if (is.null(input$ptsOverlayCond)) return()
-    if (input$ptsOverlayCond) display <- input$showAesWgts
-  }
-  display
+  'size' %in% plotInputs()
 })
 
-## display smooth condition reactive
+displayShapeCond <- reactive({
+  'shape' %in% plotInputs()
+})
+
+displayPositionCond <- reactive({
+  'position' %in% plotInputs() && !is.null(fill())
+})
+
+displayJitterCond <- reactive({
+  'jitter' %in% plotInputs()
+})
+
+displayCoordFlipCond <- reactive({
+  displayXCond() && !'pairs' %in% isolate(plotTypes())
+})
+
 displaySmthCond <- reactive({
-  if (is.null(input$plotType)) return()  
-  if (is.null(xType())) return()
-  if (is.null(yType())) return()
-  if (is.null(input$showAesWgts)) return()
-  
-  display <- FALSE
-  if (input$plotType=='scatter') {
-    if (xType()=='continuous' & yType()=='continuous')
-        display <- input$showAesWgts
-  } else if (input$plotType=='line') {
-    if (is.null(input$ptsOverlayCond)) return()
-    if (input$ptsOverlayCond) {
-      if (xType()=='continuous' & yType()=='continuous')
-      display <- input$showAesWgts
-    }
-  }
-  display  
+  'smooth' %in% plotInputs()
 })
 
-## display jitter condition reactive 
-displayJitCond <- reactive({
-  if (is.null(input$plotType)) return()
-  if (is.null(input$showAesWgts)) return()
-  display <- FALSE
-  if (input$plotType=='scatter') {
-    display <- input$showAesWgts
-  } else if (input$plotType=='line') {
-    if (is.null(input$ptsOverlayCond)) return()
-    if (input$ptsOverlayCond) display <- input$showAesWgts
-  }
-  display
+displayAlphaCond <- reactive({
+  'alpha' %in% plotInputs()
 })
 
-## display size magnifier condition reactive (belongs to advanced control widgets)
 displaySizeMagCond <- reactive({
-  if (is.null(input$plotType)) return()
-  if (is.null(input$showAesWgts)) return()
-  display <- FALSE
-  if (input$plotType=='scatter') {
-    display <- input$showAesWgts
-  } else if (any(input$plotType %in% c('line', 'path'))) {    
-    if (is.null(input$ptsOverlayCond)) return()
-    if (input$ptsOverlayCond) display <- input$showAesWgts
-  }
-  display
+  'sizeMag' %in% plotInputs() && is.null(size())
 })
 
-## display bin width condition reactive
-displayBinWidthCond <- reactive({
-  if (is.null(input$plotType)) return() 
-  if (is.null(input$x)) return()
-  if (is.null(input$showAesWgts)) return()
-  if (!(input$x %in% finalDFNumericVars())) return()
-  if (input$showAesWgts)
-    return (input$plotType=='histogram')
+displayBinsCond <- reactive({
+  'nBins' %in% plotInputs()
 })
 
-## display density black line condition reactive
-displayDensBlkLineCond <- reactive({
-  if (is.null(input$plotType)) return()
-  if (is.null(input$showAesWgts)) return()
-  return (input$plotType=='density' & input$showAesWgts)
+displayDensBlackLineCond <- reactive({
+  'densBlackLine' %in% plotInputs()
 })
 
 
-## display points overlay checkbox condition reactive
-displayPtsOverlayCond <- reactive({
-  if (is.null(input$plotType)) return()
-  return (input$plotType %in% c('line', 'path'))
-})
-
-## display additional aggregation select field condition reactive
-displayPlotAddAggBy <- reactive({
-  if (is.null(input$showDSTypeAndPlotAggWgts)) return()
-  if (is.null(semiAutoAggOn())) return()
-  return (input$showDSTypeAndPlotAggWgts & semiAutoAggOn())
-})
-
-## display xlim condition reactive
-displayXlim <- reactive({
-  if (is.null(dataset())) return()
-  if (is.null(input$x)) return()
-  if (is.null(y())) return()
-
-  if (is.null(input$showXYRangeWgts)) return()
-  return(input$showXYRangeWgts)
-})
-
-## display ylim condition reactive
-displayYlim <- reactive({
-  if (is.null(dataset())) return()
-  if (is.null(input$x)) return()
-  if (is.null(y())) return()
-
-  if (is.null(input$plotType)) return()  
-  if (input$plotType=='histogram') return()
-  
-  if (is.null(input$showXYRangeWgts)) return()
-  return(input$showXYRangeWgts)
-})
-
-## display raw-vs-manual-agg condition reactive
-displayRawVsManAgg <- reactive({
-  if (is.null(input$showDSTypeAndPlotAggWgts)) return()
-  input$showDSTypeAndPlotAggWgts
+#### pairs ####
+displayGgpairsCond <- reactive({
+  displayGgpairsColumnsCond()
 })
 
 
-## display plot aggregation method reactive
-displayPlotAggMeth <- reactive({
-  if (is.null(input$showDSTypeAndPlotAggWgts)) return()
-  input$showDSTypeAndPlotAggWgts
+#### facet ####
+displayFacetCond <- reactive({
+  is.null(plotTypes()) || !'pairs' %in% plotTypes()
 })
 
 
-displayThemeWgts <- reactive({
-  if (is.null(input$showThemeWgts)) return()
-  input$showThemeWgts
-})
+#### theme ####
+# displayTitlesCond <- reactive({
+#   !is.null(input$reactive) && !input$reactive 
+# })

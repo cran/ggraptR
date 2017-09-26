@@ -1,4 +1,3 @@
-## import libraries
 library(shiny)
 library(ggplot2)
 library(dplyr)
@@ -6,57 +5,44 @@ library(DT)
 library(stringr)
 library(shinyBS)
 library(shinyjs)
+library(colourpicker)
 library(ggthemes)
 library(jsonlite)
+library(svglite)
 library(futile.logger)
+library(GGally)
 
-## set debug logs
-source('./debug/debug.R')
+# by default, the file size limit is 5MB. 1 Gb = 1024^3 b
+options(shiny.maxRequestSize = 10 * 1024^3)
 
-## import functions
-source('./functions/helper.R')
-source('./functions/plot.R')
-source('./functions/aggregate.R')
+source('globals.R')
+source('debug/debug.R', local=T)  # set debug logs
+source('functions/helper.R')
+sourceAllInDir('functions', except='helper.R')
 
-## import global constants
-source('./global_constants.R')
-
-## file size options
-# by default, the file size limit is 5MB. It can be changed by
-# setting this option. Here we'll raise limit to 10GB.
-options(shiny.maxRequestSize = 10000*1024^2)
-
-shinyServer(function(input, output, session) {
-  ## reactive variables
-  source('./reactives/reactives.R', local=TRUE)  # general/miscellaneous
-  source('./reactives/dataset.R', local=TRUE)  # dataset variables
-  source('./reactives/plotWidgetVals.R', local=TRUE)  # plot widget values
-  source('./reactives/plotWidgetNames.R', local=TRUE)  # plot widget names
-  source('./reactives/plotWidgetOpts.R', local=TRUE)  # plot widget options
-  source('./reactives/plotWidgetsDisplayCond.R', local=TRUE)  # plot widgets display condition
-  source('./reactives/plotWidgetsLoadedCond.R', local=TRUE)  # plot widgets load conditions
-  source('./reactives/plotWidgetSelectedVals.R', local=TRUE)  # plot widget selected values
-  source('./reactives/plot.R', local=TRUE)  # plot
+serverVals <- reactiveValues(nRunnedSessions=0)  # server globals
   
-  ## UI controls
-  source('./uiWidgets/generalWidgets.R', local=TRUE)
-  source('./uiWidgets/fileWidgets.R', local=TRUE)
-  source('./uiWidgets/manAggWidgets.R', local=TRUE)
-  source('./uiWidgets/plotWidgets.R', local=TRUE)
+shinyServer(function(input, output, session) {
+  reactVals <- reactiveValues(log=NULL, readyToDraw=F, plotState=list()) # session globals
+  
+  sourceAllInDir('reactives', local=T)  # reactive variables
+  sourceAllInDir('uiWidgets', local=T)  # UI controls
   
   output$rappy <- renderImage({
-    return(list(
-      src = "www/RAPPY.png",
-      height = "140px",
-      width = "120px",
-      contentType = "image/png",
-      alt = "ggraptR"
-    ))
-  }, deleteFile = FALSE)  
+    list(src = "www/RAPPY.png",
+         contentType = "image/png", alt = "ggraptR")
+    }, deleteFile = FALSE)  
   
-  ## download handlers
-  source('./reactives/download.R', local=TRUE)
+  source('observeEvents.R', local=TRUE)
   
-  ## observed events
-  source('./observeEvents.R', local=TRUE)
+  isolate(serverVals$nRunnedSessions <- serverVals$nRunnedSessions + 1)
+
+  session$onSessionEnded(function() {
+    isolate({
+      serverVals$nRunnedSessions <- serverVals$nRunnedSessions - 1
+      if (!serverVals$nRunnedSessions) {
+        stopApp()
+      }
+    })
+  })
 })

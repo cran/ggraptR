@@ -1,389 +1,370 @@
-## plot type options
-output$plotTypeCtrl <- renderUI({
-  selectInput(inputId = "plotType", label = "Plot Type", 
-              choices = c('Scatter'='scatter', 'Line'='line',
-                          'Bar'='bar', 'Histogram'='histogram', 
-                          'Density'='density', 'Box'='box',
-                          'Path'='path'
-                          #'Violin'='violin', 
-                          #'Image'='image', 
-                          #'2-Density', 'density2d'
-                          )
-              )
-})
+# if we abandon keep the default first value of selectInput list
+# then we will lost any input state after collapsing aestetic elements block
 
-## dataset type options (raw vs. manually aggregated)
-output$rawVsManAggCtrl <- renderUI({
-  if (is.null(displayRawVsManAgg())) return()
-  if (displayRawVsManAgg()) {
-    selectInput("rawVsManAgg", "Dataset Type",
-                c("Raw Dataset" = 'raw', "Manually Aggregated" = 'manAgg'),
-                isolate(rawVsManAgg()))
+output$itersToDrawCtrl <- renderUI({
+  n <- reactVals$itersToDraw
+  if (is.null(n)) return()
+  if (n > 0) {
+    numericInput('itersToDrawInp', NULL, n, width = '80px')  # 1px
+  } else {
+    reactVals$readyToDraw <- T
+    NULL
   }
 })
 
-## aggregation method options (for plot view only)
-output$plotAggMethCtrl <- renderUI({
-  if (is.null(displayPlotAggMeth())) return()
-  if (displayPlotAggMeth()) {
-    aggMethOpts <- c('None', 'sum', 'mean', 'count', 'min', 'max', 'median')
-    selectInput('plotAggMeth', 'Aggregation Method', aggMethOpts, isolate(plotAggMeth()))
-  }
-})
-
-## x-axis options
-output$xCtrl <- renderUI({
-  if (is.null(input$dataset)) return()
-  selectInput('x', 'X', choices=xOpts(), selected=isolate(x_sel()))
-})
-
-## y-axis options
-output$yCtrl <- renderUI({
-  if (is.null(input$dataset)) return()
-  if (is.null(displayYCond())) return()
-  if (displayYCond()) {
-    selectInput('y', 'Y', choices=yOpts(), selected=isolate(y_sel()))
-  }
-})
-
-## color control options
-output$colCtrl <- renderUI({
-  if (is.null(displayColCond())) return()
-  if (displayColCond()) {
-    selectInput('color', 'Color', colOpts(), selected="clarity") #isolate(color_sel())
-  }
-})
-
-## treat-as-a-factor-variable option for color
-output$treatAsFacVarColCtrl <- renderUI({
-  if (is.null(displayTreatAsFacVarColCond())) return()
-  if (displayTreatAsFacVarColCond()) {
-    checkboxInput('treatAsFacVarCol', 'Treat as a factor variable.', value=isolate(treatAsFacVarCol()))
-  }
-})
-
-## fill control options
-output$fillCtrl <- renderUI({
-  if (is.null(displayFillCond())) return()
-  if (displayFillCond()) {
-    selectInput('fill', 'Fill', fillOpts(), isolate(fill_sel()))
-  }
-})
-
-## position (stack vs. dodge) control options
-output$posCtrl <- renderUI({
-  if (is.null(displayPosCond())) return()
-  if (displayPosCond()) {
-    selectInput('position', 'Position', c('None', 'dodge', 'stack'), isolate(position()))
-  }
-})
-
-## jitter options
-output$jitCtrl <- renderUI({
-  flog.debug("plotWidgets::output$jitCtrl() - Begin", name='all')
-  if (is.null(displayJitCond())){
-    flog.debug("plotWidgets::output$jitCtrl() - is.null(displayJitCond()) - End", name='all')
-    return()
-  }
-  if (displayJitCond()) {
-    flog.debug("plotWidgets::output$jitCtrl() - displayJitCond() - End", name='all')
-    flog.debug(jitter(), name='all')
-    checkboxInput('jitter', 'Apply jitter effect', value=TRUE) #isolate(jitter())
-  }
-})
-
-## geom smoothing options
-output$smthCtrl <- renderUI({
-  if (is.null(displaySmthCond())) return()
-  if (displaySmthCond()) {
-    if (all(c(input$x, input$y) %in% numericVars())) {
-      selectInput('smooth', 'Smoothing Effect', 
-                  c('None'='None', 'Linear'='lm', 'Non-linear'='auto'),
-                  isolate(smoothOrig()))
+output$plotTypesCtrl <- renderUI({
+  if (is.null(dataset())) return()  # trigger
+  curGroupAllOpts <- plotTypesOpts()
+  
+  isolate({
+    pTypes <- plotTypes()
+    isInit <- all(sapply(c(x(), y(), columns(), plotTypes()), is.null))
+    
+    if (isInit) {
+      inp <- getInitialArg('initialPlot')
+      initialPlot <- if (is.null(inp)) NULL else
+        inp %>% tolower() %>% gsub('(plot)| ', '', .)
     }
+    
+    ls <- list()
+    ls[c('opts', 'val')] <- if (isInit) {
+      opts <- getPlotTypeOpts(initialPlot, 
+                              length(numericVars()), length(categoricalVars()))
+      list(opts, if (!is.null(initialPlot)) initialPlot else if (!is.null(opts)) opts[1])
+    } else if (reactVals$is_dataset_changed > 0) {
+      if (is.null(pTypes)) list(list('Histogram' = 'histogram'), 'histogram')
+    } else {
+      reactVals$is_dataset_changed <- 0.5  # will be flipped in plotTypesOpts()
+      list(curGroupAllOpts, pTypes)
+    }
+    
+    selectInput("plotTypes", "Plot type", ls$opts, ls$val, multiple = T)
+  })
+})
+
+
+#### main ####
+output$xCtrl <- renderUI({
+  if (displayXCond()) {
+    isolate({
+      varType <- if (needCatX(plotTypes())) 'categorical' else 'numeric'
+      vars <- do.call.pasted(varType, 'Vars')
+      if (!length(vars)) varType <- sprintf('%s. Absent' , varType)
+      selectInput('x', sprintf('X (%s)', varType), vars, selected = x())
+    })
+  }
+})
+
+output$yCtrl <- renderUI({
+  if (displayYCond()) {
+    isolate({
+      isDiamondsInit <- datasetName() == 'diamonds' && is.null(y())
+      vars <- setdiff(numericVars(), if (displayXCond()) x())
+      selectInput('y', paste0('Y (numeric', if (!length(vars)) '. Absent', ')'), vars,
+                  if (isDiamondsInit) 'price' else y())
+    })
+  }
+})
+
+# columns for pairsPlot
+output$columnsCtrl <- renderUI({
+  if (displayGgpairsColumnsCond()) {
+    isolate(selectInput(
+      'columns', 'Columns', choices=names(dataset()),
+      selected=if (is.null(columns())) names(dataset())[1:min(ncol(dataset()), 3)] else
+        columns(), multiple=T))
+  }
+})
+
+output$colorCtrl <- renderUI({
+  if (displayColorCond()) {
+    isolate({
+      isScatter <- all('scatter' == plotTypes())
+      isDiamondsInit <- isScatter && datasetName() == 'diamonds' && is.null(y())
+      opts <- c('None', if (isScatter) 
+                 names(dataset()) else categoricalVars())
+      
+      selectInput('color', 'Color', opts, if (isDiamondsInit) 'color' else color())
+    })
+  }
+})
+
+output$treatColorAsFactorCtrl <- renderUI({
+  if (displayTreatAsFactorCond()) {
+    isolate(checkboxInput('treatColorAsFactor', 'Treat color as a factor', value=F))
+  }
+})
+
+output$fillCtrl <- renderUI({
+  if (displayFillCond()) {
+    isolate(selectInput('fill', 'Fill', c('None', categoricalVars()), fillOrig()))
+  }
+})
+
+output$sizeCtrl <- renderUI({
+  if (displaySizeCond()) {
+    isolate(selectInput('size', 'Size', c('None', numericVars()), sizeOrig()))
+  }
+})
+
+output$shapeCtrl <- renderUI({
+  if (displayShapeCond()) {
+    isolate(selectInput('shape', 'Shape', c('None', categoricalVars()), shapeOrig()))
+  }
+})
+
+# position (stack vs. dodge) control options
+output$positionCtrl <- renderUI({
+  if (displayPositionCond()) {
+    isolate(selectInput('position', 'Position', c('stack', 'dodge', 'fill'), position()))
+  }
+})
+
+output$jitterCtrl <- renderUI({
+  if (displayJitterCond()) {
+    is_agg_empty <- is.null(plotAggMeth()) || tolower(plotAggMeth()) == 'none'
+    isolate(checkboxInput('jitter', 'Apply jitter effect', 
+                          all('scatter' == plotTypes()) && is_agg_empty))
+  }
+})
+
+output$coordFlipCtrl <- renderUI({
+  if (displayCoordFlipCond()) {
+    isolate(checkboxInput('coordFlip', 'Flip X and Y axis', value=F))
+  }
+})
+
+output$smoothCtrl <- renderUI({
+  if (displaySmthCond()) {
+    isolate(selectInput('smooth', 'Smoothing Effect',
+                        c('None'='None', 'Linear'='lm', 'Non-linear'='auto'), 
+                        smoothOrig()))
   } 
 })
 
-## size options
-output$sizeCtrl <- renderUI({
-  if (is.null(displaySizeCond())) return()
-  if (displaySizeCond()) {
-    selectInput('size', 'Size', sizeOpts(), isolate(size_sel()))
-  }
-})
-
-## shape options
-output$shapeCtrl <- renderUI({
-  if (is.null(displayShapeCond())) return()
-  if (displayShapeCond()) {
-    selectInput('shape', 'Shape', shapeOpts(), isolate(shape_sel()))
-  }
-})
-
-## histogram binwidth options
-output$binWidthCtrl <- renderUI({
-  if (is.null(displayBinWidthCond())) return()
-  if (is.null(histMaxBinWidth())) return()
-  if (displayBinWidthCond()) {
-    sliderInput('binWidth', label = "Bin Width",
-                min=1, max=histMaxBinWidth(), value=isolate(binWidth()), step=1) 
-  }
-})
-
-## density line color options
-output$densBlkLineCondCtrl <- renderUI({
-  if (is.null(displayDensBlkLineCond())) return()
-  if (displayDensBlkLineCond()) {
-    checkboxInput('densBlkLineCond', 'Draw black outline', value=isolate(densBlkLineCond()))
-  }
-})
-
-## points overlay options
-output$ptsOverlayCondCtrl <- renderUI({  
-  if (is.null(displayPtsOverlayCond())) return()
-  if (displayPtsOverlayCond()) { 
-    checkboxInput('ptsOverlayCond', 'Points Overlay', value=isolate(ptsOverlayCond()))
-  }
-})
-
-
-
-## row-wise facet options
-output$facetRowCtrl <- renderUI({
-  if (is.null(input$showFacetWgts)) return()
-  if (input$showFacetWgts) {
-    selectInput('facetRow', 'Facet Row', facetOpts(), isolate(facetRow_sel()))
-  }
-})
-
-## column-wise facet options
-output$facetColCtrl <- renderUI({
-  if (is.null(input$showFacetWgts)) return()
-  if (input$showFacetWgts) {
-    selectInput('facetCol', 'Facet Column', facetOpts(), isolate(facetCol_sel()))
-  }
-})
-
-## facet wrap options
-output$facetWrapCtrl <- renderUI({
-  if (is.null(input$showFacetWgts)) return()
-  if (input$showFacetWgts) {
-    selectInput('facetWrap', 'Facet Wrap', facetOpts(), isolate(facetWrap_sel()))
-  }
-})
-
-## facet scale options
-output$facetScaleCtrl <- renderUI({
-  if (is.null(input$showFacetWgts)) return()
-  if (input$showFacetWgts) {
-    selectInput('facetScale', 'Facet Scale',
-                c('None'='fixed', 'Free X'='free_x', 
-                  'Free Y'='free_y', 'Free X & Y'='free'),
-                isolate(facetScale()))
-  }
-})
-
-## alpha (opacity) options
 output$alphaCtrl <- renderUI({
-  if (is.null(input$showAesWgts)) return()
-  if (input$showAesWgts) {
+  if (displayAlphaCond()) {
     sliderInput("alpha", label = "Opacity",
-                min=0, max=1, value=0.5, step=0.1) #isolate(alpha())
+                min=0, max=1, value=0.5, step=0.1)
   }
 })
 
-
-## size magnifier option
+# size magnifier
 output$sizeMagCtrl <- renderUI({
-  if (is.null(displaySizeMagCond())) return()
   if (displaySizeMagCond()) {
     sliderInput("sizeMag", label="Size Magnifier",
-                min=1, max=25, value=3, step=1) #isolate(sizeMag())
+                min=1, max=25, value=3, step=1)
   }
 })
 
-## coordinate flip options 
-output$coordFlipCtrl <- renderUI({
-  if (is.null(input$showAesWgts)) return()
-  if (input$showAesWgts) {
-    checkboxInput('coordFlip', 'Flip X and Y coordinates.', value=isolate(coordFlip()))
+output$nBinsCtrl <- renderUI({  # histogram bins options
+  if (displayBinsCond()) {
+    isolate(sliderInput('nBins', label = "Number of bins", min=5, max=100, 
+                        value=if (is.null(nBins())) 16 else nBins()))
   }
 })
 
-
-# additional aggregation by options
-output$plotAddAggByCtrl <- renderUI({
-  if (is.null(displayPlotAddAggBy())) return()
-  if (displayPlotAddAggBy()) {
-    selectInput('plotAddAggBy', 'Additional Aggregation Variables', 
-                choices=plotAddAggByOpts(), multiple=T,
-                selected=isolate(plotAddAggBy_sel()))
-  }
-})
-
-## xlim control
-output$xlimCtrl <- renderUI({
-  if (is.null(displayXlim())) return()
-  if (displayXlim()) {
-    if (input$x %in% finalDFNumericVars()) {
-      if (is.null(xRange())) return()
-      sliderInput("xlim", label="X Range",
-                  min=xRange()[1], max=xRange()[2], value=xRange(), round=FALSE)
-    } else if (input$x %in% finalDFFactorVars()) {
-      selectInput('xlim', label='X Value', 
-                  choices=xFactorVarUniqVals(), 
-                  #selected=xFactorVarUniqVals(),
-                  multiple=T)
-    }
-  }
-})
-
-## ylim control
-## note: ylim() is NOT applicable to histograms
-output$ylimCtrl <- renderUI({
-  if (is.null(displayYlim())) return()
-  if (displayYlim()) {
-    y <- y()
-    
-    if (y %in% finalDFNumericVars()) {
-      if (is.null(yRange())) return()
-      sliderInput("ylim", label="Y Range",
-                  min=yRange()[1], max=yRange()[2], value=yRange(), round=FALSE)
-    } else if (y %in% finalDFFactorVars()) {
-      selectInput('ylim', label='Y Value',
-                  choices=yFactorVarUniqVals(), 
-                  #selected=yFactorVarUniqVals(),
-                  multiple=T)
-    }
+# density plot color options
+output$densBlackLineCtrl <- renderUI({
+  if (displayDensBlackLineCond()) {
+    isolate(checkboxInput('densBlackLine', 'Draw black outline', 
+                          value=densBlackLine()))
   }
 })
 
 
+#### pairs ####
+output$pairsUpContCtrl <- renderUI({
+  if (displayGgpairsCond()) {
+    isolate(selectInput(
+      'pairsUpCont', NULL, 
+      c('points', 'smooth', 'smooth_loess', 'density', 'cor', 'blank'),
+      getFirstNonNull(pairsUpCont(), eval(formals(ggpairs)$upper)$continuous)))
+  }
+})
 
-## plot title
+output$pairsUpComboCtrl <- renderUI({
+  if (displayGgpairsCond()) {
+    isolate(selectInput(
+      'pairsUpCombo', NULL,
+      c('box', 'dot', 'facethist', 'facetdensity', 'denstrip','blank'),
+      getFirstNonNull(pairsUpCombo(), eval(formals(ggpairs)$upper)$combo)))
+  }
+})
+
+output$pairsUpDiscrCtrl <- renderUI({
+  if (displayGgpairsCond()) {
+    isolate(selectInput(
+      'pairsUpDiscr', NULL,
+      c('facetba'='facetbar', 'ratio', 'blank'),
+      getFirstNonNull(pairsUpDiscr(), eval(formals(ggpairs)$upper)$discrete)))
+  }
+})
+
+output$pairsLowContCtrl <- renderUI({
+  if (displayGgpairsCond()) {
+    isolate(selectInput(
+      'pairsLowCont', NULL, 
+      c('points', 'smooth', 'smooth_loess', 'density', 'cor', 'blank'),
+      getFirstNonNull(pairsLowCont(), eval(formals(ggpairs)$lower)$continuous)))
+  }
+})
+
+output$pairsLowComboCtrl <- renderUI({
+  if (displayGgpairsCond()) {
+    isolate(selectInput(
+      'pairsLowCombo', NULL, 
+      c('box', 'dot', 'facethi'='facethist', 'facetdensity', 'denstrip', 'blank'),
+      getFirstNonNull(pairsLowCombo(), eval(formals(ggpairs)$lower)$combo)))
+  }
+})
+
+output$pairsLowDiscrCtrl <- renderUI({
+  if (displayGgpairsCond()) {
+    isolate(selectInput(
+      'pairsLowDiscr', NULL, 
+      c('facetba'='facetbar', 'ratio', 'blank'),
+      getFirstNonNull(pairsLowDiscr(), eval(formals(ggpairs)$lower)$discrete)))
+  }
+})
+
+output$pairsDiagContCtrl <- renderUI({
+  if (displayGgpairsCond()) {
+    isolate(selectInput(
+      'pairsDiagCont', NULL,
+      c('density'='densityDiag', 'bar'='barDiag', 'blank'='blankDiag'),
+      getFirstNonNull(pairsDiagCont(), eval(formals(ggpairs)$diag)$continuous)))
+  }
+})
+
+output$pairsDiagDiscrCtrl <- renderUI({
+  if (displayGgpairsCond()) {
+    isolate(selectInput(
+      'pairsDiagDiscr', NULL,
+      c('bar'='barDiag', 'blank'='blankDiag'),
+      getFirstNonNull(pairsDiagDiscr(), eval(formals(ggpairs)$diag)$discrete)))
+  }
+})
+
+
+#### facets ####
+output$facetRowCtrl <- renderUI({
+  if (displayFacetCond()) {
+    isolate(selectInput('facetRow', 'Facet Row', 
+                        c('None', categoricalVars()), facetRowOrig()))
+  }
+})
+
+output$facetColCtrl <- renderUI({
+  facetRow <- facetRowOrig()
+  if (displayFacetCond()) {
+    isolate(selectInput('facetCol', 'Facet Column',
+                        c('None', setdiff(categoricalVars(), facetRow)),
+                        facetColOrig()))
+  }
+})
+
+output$facetWrapCtrl <- renderUI({
+  if (displayFacetCond()) {
+    isolate(selectInput('facetWrap', 'Facet Wrap', 
+                        c('None', categoricalVars()), facetWrapOrig()))
+  }
+})
+
+output$facetScaleCtrl <- renderUI({
+  if (displayFacetCond()) {
+    isolate(selectInput('facetScale', 'Facet Scale',
+                        c('None'='fixed', 'Free X'='free_x', 'Free Y'='free_y', 
+                          'Free X & Y'='free'),
+                        facetScale()))
+  }
+})
+
+
+#### theme ####
 output$plotTitleCtrl <- renderUI({
-  if (is.null(displayThemeWgts())) return()
-  if (is.null(input$reactive)) return()
-  if (displayThemeWgts() & !input$reactive) {
-    textInput('plotTitle', 'Plot Title', value=isolate(plotTitle()))
-  }
+  isolate(textInput('plotTitle', 'Plot Title', value=plotTitle()))
 })
 
-## x label
 output$xLabelCtrl <- renderUI({
-  if (is.null(displayThemeWgts())) return()
-  if (is.null(input$reactive)) return()
-  if (displayThemeWgts() & !input$reactive) {
-    textInput('xLabel', 'X Label', value=isolate(xLabel()))
-  }
+  isolate(textInput('xLabel', 'X Label', value=xLabel()))
 })
 
-## y label
 output$yLabelCtrl <- renderUI({
-  if (is.null(displayThemeWgts())) return()
-  if (is.null(input$reactive)) return()
-  if (displayThemeWgts() & !input$reactive) {
-    textInput('yLabel', 'Y Label', value=isolate(yLabel()))
-  }
+  isolate(textInput('yLabel', 'Y Label', value=yLabel()))
 })
 
-## label font family 
 output$labelFontFamilyCtrl <- renderUI({
-  if (is.null(displayThemeWgts())) return()
-  if (displayThemeWgts()) {
-    labelFontFamilyOpts <- c('Calibri', 'sans', 'serif', 'mono', 
-                             'Times', 'Helvetica', 'Courier')
-    selectInput('labelFontFamily', 'Label Font Family', labelFontFamilyOpts, isolate(labelFontFamily()))
-  }
+  # only the first 3 fonts are available on Windows machine. Next ones generate warnings
+  labelFontFamilyOpts <- c('sans', 'serif', 'mono', 'Calibri', 
+                           'Times', 'Helvetica', 'Courier')
+  isolate(selectInput('labelFontFamily', 'Label Font Family', labelFontFamilyOpts, 
+                      labelFontFamily()))
 })
 
-## label font face
 output$labelFontFaceCtrl <- renderUI({
-  if (is.null(displayThemeWgts())) return()
-  if (displayThemeWgts()) {
-    labelFontFaceOpts <- c('plain', 'bold', 'italic', 'bold.italic')
-    selectInput('labelFontFace', 'Label Font Face', labelFontFaceOpts, isolate(labelFontFace()))
-  }
+  labelFontFaceOpts <- c('plain', 'bold', 'italic', 'bold.italic')
+  isolate(selectInput('labelFontFace', 'Label Font Face', 
+                      labelFontFaceOpts, labelFontFace()))
 })
 
-## label font size
 output$labelFontSizeCtrl <- renderUI({
-  if (is.null(displayThemeWgts())) return()
-  if (displayThemeWgts())
-    numericInput('labelFontSize', 'Label Font Size', value=isolate(labelFontSize()), min=7, max=30, step=1)
+  isolate(numericInput('labelFontSize', 'Label Font Size', value=labelFontSize(), 
+                       min=7, max=30, step=1))
 })
 
-## label font color
 output$labelFontColorCtrl <- renderUI({
-  if (is.null(displayThemeWgts())) return()
-  if (displayThemeWgts())
-    shinyjs::colourInput('labelFontColor', 'Label Font Color', value=isolate(labelFontColor()))
+  isolate(colourInput('labelFontColor', 'Label Font Color',
+                      value=labelFontColor()))
 })
 
-## hjust
 output$hjustCtrl <- renderUI({
-  if (is.null(displayThemeWgts())) return()
-  if (displayThemeWgts())
-    numericInput('hjust', 'Horizontal Adjust', value=isolate(hjust()), min=0, max=1, step=0.1)
+  isolate(numericInput('hjust', 'Horizontal Adjust', hjust(), min=0, max=1, step=0.1))
 })
 
-## vjust
 output$vjustCtrl <- renderUI({
-  if (is.null(displayThemeWgts())) return()
-  if (displayThemeWgts())
-    numericInput('vjust', 'Vertical Adjust', value=isolate(vjust()), min=0, max=1, step=0.1)
+  isolate(numericInput('vjust', 'Vertical Adjust', vjust(), min=0, max=1, step=0.1))
 })
 
-## plot theme
 output$plotThemeCtrl <- renderUI({
-  if (is.null(displayThemeWgts())) return()
-  if (displayThemeWgts()) {
-    themes <- c('Grey' = 'theme_grey', 
-                'Black and White' = 'theme_bw', 
-                'LibreOffice Calc' = 'theme_calc',
-                'The Economist' = 'theme_economist',
-                'Stephen Few' = 'theme_few',
-                '538' = 'theme_fivethirtyeight', 
-                'Google Docs' = 'theme_gdocs', 
-                'HighCharts' = 'theme_hc', 
-                'pander' = 'theme_pander', 
-                'solarized' = 'theme_solarized', 
-                'Stata' = 'theme_stata', 
-                'Tufte' = 'theme_tufte', 
-                'Wall Street Journal' = 'theme_wsj')
-    selectInput('plotTheme', 'Plot Themes', themes, isolate(plotTheme()))
+  themes <- c('Grey' = 'theme_grey', 
+              'Black and White' = 'theme_bw', 
+              'LibreOffice Calc' = 'theme_calc',
+              'The Economist' = 'theme_economist',
+              'Stephen Few' = 'theme_few',
+              '538' = 'theme_fivethirtyeight', 
+              'Google Docs' = 'theme_gdocs', 
+              'HighCharts' = 'theme_hc', 
+              'pander' = 'theme_pander', 
+              'solarized' = 'theme_solarized', 
+              'Stata' = 'theme_stata', 
+              'Tufte' = 'theme_tufte', 
+              'Wall Street Journal' = 'theme_wsj')
+  isolate(selectInput('plotTheme', 'Plot Theme', themes, plotTheme()))
+})
+
+
+#### aggregations ####
+# raw vs. manually aggregated. Plot tab
+output$rawVsManAggCtrl <- renderUI({
+  isolate(selectInput("rawVsManAgg", "Dataset Type",
+                      c("Raw Dataset" = 'raw', "Manually Aggregated" = 'manAgg'),
+                      rawVsManAgg()))
+})
+
+# aggregation method (sum, mean, ...). Plot tab
+output$plotAggMethCtrl <- renderUI({
+  plotTypes()
+  isolate(selectInput('plotAggMeth', 'Aggregation Method', 
+                      c('None', 'sum', 'mean', 'count', 'min', 'max', 'median'),
+                      plotAggMeth()))
+})
+
+# additional aggregation by feature options. Plot tab
+output$plotAddAggByCtrl <- renderUI({
+  if (!is.null(plotTypes()) && semiAutoAggOn()) {
+    isolate(selectInput('plotAddAggBy', 'Additional Aggregation Variables', 
+                        choices=setdiff(colnames(rawDataset()), plotSemiAutoAggByBase()), 
+                        multiple=T, selected=plotAddAggBy()))
   }
-})
-
-
-#### show/hide checkbox widgets
-## show aesthetic controls
-output$showAesWgtsCtrl <- renderUI({
-  checkboxInput('showAesWgts', 'Show aesthetics', value=TRUE)
-})
-
-## show facet controls
-output$showFacetWgtsCtrl <- renderUI({
-  checkboxInput('showFacetWgts', 'Show facets', value=FALSE)
-})
-
-## show X & Y range controls
-output$showXYRangeWgtsCtrl <- renderUI({
-  checkboxInput('showXYRangeWgts', 'Show ranges', value=FALSE)
-})
-
-## show aggregation controls
-output$showPlotAggWgtCtrl <- renderUI({
-  checkboxInput('showPlotAggWgt', 'Show plot aggregations', value=FALSE)
-})
-
-## show theme controls
-output$showThemeWgtsCtrl <- renderUI({
-  checkboxInput('showThemeWgts', 'Show themes', value=FALSE)
-})
-
-## show dataset type and plot aggregation method controls
-output$showDSTypeAndPlotAggWgtsCtrl <- renderUI({
-  checkboxInput('showDSTypeAndPlotAggWgts', 
-                'Show dataset type and aggregation method', value=FALSE)
 })

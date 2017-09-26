@@ -1,190 +1,166 @@
-## reactive variable for custom (uploadable) dataset file info
-customDatasetFileInfo <- reactive({
+dbUploadedDf <- reactive({
+  eval_btn <- input$dbExecuteBtn  # trigger
+  
+  isolate({
+    driver_name <- input$dbDriverTypeCtrl
+    if (is.null(driver_name) || !eval_btn) return()
+    package_for_driver <- paste0('R', driver_name)
+    if (!require(package_for_driver, character.only = T)) {
+      install.packages(package_for_driver)
+      library(package_for_driver, character.only = T)
+    }
+    
+    # con <- dbConnect(dbDriver('MySQL'), user='gray', host='db4free.net',
+    #                  password='12348888', dbname='ggtest', port=3307)
+    
+    con <- dbConnect(dbDriver(driver_name), 
+                     host=input$dbHost, port=as.integer(input$dbPort),
+                     user=input$dbUser, password=input$dbPass, 
+                     dbname=input$dbName)
+    
+    query <- input$dbSqlQuery
+    
+    df <- dbGetQuery(con, query)
+    df <- df[, setdiff(names(df), 'row_names')]
+    dbDisconnect(con)
+    
+    reactVals$is_db_upload <- T
+  })
+  
+  df
+})
+
+# reactive variable for custom (uploaded) dataset
+uploadedDf <- reactive({
   # input$file will be NULL initially. After the user selects
   # and uploads a file, it will be a data frame with 'name',
   # 'size', 'type', and 'datapath' columns. The 'datapath'
   # column will contain the local filenames where the data can
   # be found.
-  flog.debug("dataset::customDatasetFileInfo() - Begin", name='all')
-  fileInfo <- input$file
-  flog.debug("dataset::customDatasetFileInfo() - End", name='all')
-  fileInfo
-})
-
-## reactive variable for custom (uploaded) dataset
-customDataset <- reactive({
+  input$file  # trigger
+  db_df <- dbUploadedDf()
   
-  flog.debug("dataset::customDataset() - Begin", name='all')
-  
-  fileInfo <- customDatasetFileInfo()
-  if (is.null(fileInfo)){
-    flog.debug("dataset::customDataset() - is.null(fileInfo) - End", name='all')
-    return()
-  }
-  if (is.null(input$header) | is.null(input$sep) | is.null(input$quote)){
-    flog.debug("dataset::customDataset() - is.null(input$header) | is.null(input$sep) | is.null(input$quote) - End", name='all')
-    return()
-  }
-  
-  flog.debug("dataset::customDataset() - End", name='all')
-  
-  read.csv(fileInfo$datapath, header = as.logical(input$header),
-           sep = input$sep, quote = input$quote)
-})
-
-## reactive variable for custom dataset name
-customDatasetName <- reactive({
-  
-  flog.debug("dataset::customDatasetName() - Begin", name='all')
-  
-  flog.debug("dataset::customDatasetName() - End", name='all')
-  
-  customDatasetFileInfo()$name
-})
-
-## reactive variable for raw dataset names
-rawDatasetNames <- reactive({
-  
-  flog.debug("dataset::rawDatasetNames() - Begin", name='all')
-  
-  flog.debug("dataset::rawDatasetNames() - End", name='all')
-  
-  c("diamonds", "mtcars", "rock", 
-    customDatasetName(),
-    getLoadedDataFrameNames())
-})
-
-## reactive variable for raw dataset
-rawDataset <- reactive({
-  
-  flog.debug("dataset::rawDataset() - Begin", name='all')
-  
-  ## from dataset selection drop-down
-  if (is.null(input$dataset)){
-    flog.debug("dataset::rawDataset() - is.null(input$dataset) - End", name='all')
-    return()
-  }
-  
-  ## if no custom dataset was uploaded, then set one of the preloaded datasets as raw dataset
-  if (is.null(input$file)) {
-    flog.debug("dataset::rawDataset() - is.null(input$file) - End", name='all')
-    get(input$dataset)
-  }
-  
-  ## if custom dataset was uploaded
-  else {
-    ## if custom dataset was selected, then set it as raw dataset
-    if (input$dataset == customDatasetName()) {
-      flog.debug("dataset::rawDataset() - input$dataset == customDatasetName() - End", name='all')
-      customDataset()      
-    } 
-    
-    ## if custom dataset was not selected, then set one of the preloaded datasets as raw dataset
-    else {
-      flog.debug("dataset::rawDataset() - !(input$dataset == customDatasetName()) - End", name='all')
-      get(input$dataset)
+  isolate({
+    # to add all dwnload input names at once
+    # prevents premature closing of the modal window
+    if (sum(c('dbExecuteBtn', 'file') %in% names(input)) == 1) {
+      updateTabsetPanel(session, 'addDatasetTabset', 'addFileTab')
     }
-  }
+    
+    close_modal_if_opened <- function() {
+      if (input$modalUploadOptions) {
+        toggleModal(session, "modalUploadOptions", toggle = "close")
+      }
+    }
+    
+    if (not_null_true(reactVals$is_db_upload)) {
+      close_modal_if_opened()
+      return(db_df)
+    }
+    if (anyNull(input$file, input$header, input$sep, input$quote)) return()
+    
+    close_modal_if_opened()
+    read.csv(input$file$datapath, header = as.logical(input$header),
+             sep = input$sep, quote = input$quote)
+  })
 })
 
-## manually aggregated dataset
+# reactive variable for custom dataset name
+uploadedDfName <- reactive({
+  if (is.null(uploadedDf())) return()
+  
+  isolate({
+    if (not_null_true(reactVals$is_db_upload)) {
+      reactVals$is_db_upload <- NULL
+      
+      df_name <- input$dbSqlQuery %>% 
+        gsub(' +', ' ',.) %>% 
+        stringr::str_extract('(?i)(?<=from )\\S+')
+      
+      if (is.na(df_name)) 'db_uploaded' else df_name
+    } else {
+      input$file$name
+    }
+  })
+})
+
+
+# reactive variable for raw dataset names
+rawDatasetNames <- reactive({
+  input$evalConsoleBtn  # to update on assignment operation
+  unique(c(uploadedDfName(), getInitialArg('initialDfName'), getPreloadedEnvDfNames(), 
+           "diamonds", "mtcars", "esoph"))
+})
+
+
+# reactive variable for raw dataset
+rawDataset <- reactive({
+  nCatUniqVals()  # to update on change of dataset options
+  input$evalConsoleBtn  # to update on assignment operation
+  cur_name <- datasetName()  # trigger
+  if (is.null(cur_name)) return()  # for initial input$datasetName
+  
+  isolate({
+    df <- if (!is.null(uploadedDfName()) && cur_name == uploadedDfName()) 
+      uploadedDf() else get(cur_name)
+    if (any(class(df) == 'reactive')) {
+      stop('Please change the dataset name to prevent a collision with a ggraptR object')
+    }
+    data.frame(lapply(df, function(x) if (is.character(x)) as.factor(x) else x))
+  })
+})
+
+# manually aggregated dataset
 manAggDataset <- reactive({
-  
-  flog.debug("dataset::manAggDataset() - Begin", name='all')
-  
-  ## if all fields for manual aggregation are filled in
-  if (!is.null(input$aggBy) & !is.null(input$aggTarget) & !is.null(input$aggMeth)) {
-    ## return manually aggregated dataset
-    flog.debug("dataset::manAggDataset() - !is.null(input$aggBy) & !is.null(input$aggTarget) & !is.null(input$aggMeth)", name='all')
-    df <- aggregate(rawDataset(), input$aggBy, input$aggTarget, input$aggMeth)
+  # if all fields for manual aggregation are filled in
+  if (notNulls(input$aggBy, input$aggTarget, input$aggMeth)) {
+    # return manually aggregated dataset
+    aggregate(rawDataset(), input$aggBy, input$aggTarget, input$aggMeth)
+  } else {  # return raw dataset  
+    rawDataset()
   }
-  
-  ## else, return raw dataset  
-  else {
-    flog.debug("dataset::manAggDataset() - !(!is.null(input$aggBy) & !is.null(input$aggTarget) & !is.null(input$aggMeth))", name='all')
-    df <- rawDataset()
-  }
-
-  flog.debug("dataset::manAggDataset() - End", name='all')
-  df
 })
 
-## raw or aggregated dataset
+# raw or aggregated dataset
 dataset <- reactive({
-  
-  flog.debug("dataset::dataset() - Begin", name='all')
-
   #if (is.null(input$rawVsManAgg)) return()
-  if (is.null(input$rawVsManAgg)){
-    flog.debug("dataset::dataset() - is.null(input$rawVsManAgg) - End", name='all')
+  if (is.null(input$rawVsManAgg)) {
     return(rawDataset())
   }
-
-  ## raw dataset
+  
+  # raw dataset
   if (input$rawVsManAgg == 'raw') {
-    flog.debug("dataset::dataset() - input$rawVsManAgg == 'raw' - End", name='all')
-    dataset <- rawDataset()
-  } 
-
-  ## aggregated dataset
-  else if (input$rawVsManAgg=='manAgg') {
-    flog.debug("dataset::dataset() - input$rawVsManAgg=='manAgg' - End", name='all')
-    dataset <- manAggDataset()
+    rawDataset()
+  } else if (input$rawVsManAgg == 'manAgg') {  # aggregated dataset
+    manAggDataset()
   }
-  
-  flog.debug("dataset::dataset() - End", name='all')
-
-  dataset
 })
 
 
-## reactive for base semi-automatic aggregate-by fields 
-## (that are NOT in the "additional aggregate-by" fields)
+# reactive for base semi-automatic aggregate-by fields 
+# (that are NOT in the "additional aggregate-by" fields)
 plotSemiAutoAggByBase <- reactive({
-  flog.debug("dataset::plotSemiAutoAggByBase() - Begin", name='all')
-  aggBy <- c(input$x, input$color, input$size, input$shape, input$fill, input$facetRow, input$facetCol, input$facetWrap)
-  aggBy <- cleanPlotAggBy(input$x, input$y, aggBy)
-  flog.debug("dataset::plotSemiAutoAggByBase() - End", name='all')
-  aggBy
+  aggBy <- c(input$x, input$color, input$size, input$shape, input$fill, input$facetRow, 
+             input$facetCol, input$facetWrap)
+  cleanPlotAggBy(input$x, input$y, aggBy)
 })
 
-## reactive for semi-automatic aggregate by
-## base + additional aggregate-by fields
+# reactive for semi-automatic aggregate by
+# base + additional aggregate-by fields
 plotSemiAutoAggBy <- reactive({
-  
-  flog.debug("dataset::plotSemiAutoAggBy() - Begin", name='all')
-  
-  if (is.null(dataset())){
-    flog.debug("dataset::plotSemiAutoAggBy() - is.null(dataset()) - End", name='all')
-    return()
-  }
-  aggBy <- c(plotSemiAutoAggByBase(), input$plotAddAggBy)
+  if (is.null(dataset())) return()
+  aggBy <- c(plotSemiAutoAggByBase(), plotAddAggBy())
   aggBy <- cleanPlotAggBy(input$x, input$y, aggBy)
-  aggBy <- rmElemsNotInDatasetCols(aggBy, dataset())
-  
-  flog.debug("dataset::plotSemiAutoAggBy() - End", name='all')
-  
-  aggBy
+  aggBy[aggBy %in% colnames(dataset())]
 })
 
-## reactive for semi-automatic aggregated dataset
+# reactive for semi-automatic aggregated dataset
 semiAutoAggDF <- reactive({
+  if (is.null(semiAutoAggOn()) || is.null(dataset())) return()
   
-  flog.debug("dataset::semiAutoAggDF() - Begin", name='all')
-  
-  if (is.null(semiAutoAggOn())){
-    flog.debug("dataset::semiAutoAggDF() - is.null(semiAutoAggOn()) - End", name='all')
-    return()
-  }
-  if (is.null(dataset())){
-    flog.debug("dataset::semiAutoAggDF() - is.null(dataset()) - End", name='all')
-    return()
-  }
-  ## if plot aggregation is specified (e.g. sum, mean, max, min)  
+  # if plot aggregation is specified (e.g. sum, mean, max, min)  
   if (semiAutoAggOn()) {
-    flog.debug("dataset::semiAutoAggDF() - semiAutoAggOn()", name='all')
-    if (is.null(plotSemiAutoAggBy())){
-      flog.debug("dataset::semiAutoAggDF() - is.null(plotSemiAutoAggBy()) - End", name='all')
+    if (is.null(plotSemiAutoAggBy())) {
       return()
     }
     
@@ -194,100 +170,59 @@ semiAutoAggDF <- reactive({
     
     vars <- c(aggBy, aggTarget)
     if (all(vars %in% colnames(dataset()))) {
-      semiAutoAggDF <- aggregate(dataset(), aggBy=aggBy, aggTarget=input$y, aggMeth=input$plotAggMeth)
-      flog.debug("dataset::semiAutoAggDF() - all(vars %in% colnames(dataset()) - End", name='all')
-      semiAutoAggDF 
+      aggregate(dataset(), aggBy=aggBy, aggTarget=input$y, aggMeth=input$plotAggMeth)
     }
   } 
 })
 
-## reactive variable for final dataset
-finalDF <- reactive({
-  
-  flog.debug("dataset::finalDF() - Begin", name='all')
-  
-  if (is.null(dataset())){
-    flog.debug("dataset::finalDF() - is.null(dataset()) - End", name='all')
-    return()
-  }
-  if (is.null(semiAutoAggOn())){
-    flog.debug("dataset::finalDF() - is.null(semiAutoAggOn()) - End", name='all')
+# reactive variable for final dataset
+aggDf <- reactive({
+  if (is.null(dataset())) return()
+  if (is.null(semiAutoAggOn())) {
     return(dataset())
   }
   
-  ## semi-automatic aggregation (if enabled)
-  if (semiAutoAggOn()){
-    flog.debug("dataset::finalDF() - semiAutoAggOn() - End", name='all')
+  # semi-automatic aggregation (if enabled)
+  if (semiAutoAggOn()) {
     semiAutoAggDF()
-  }
-  ## natural dataset (raw or manually aggregated dataset)
-  else{
-    flog.debug("dataset::finalDF() - !(semiAutoAggOn()) - End", name='all')
+  } else{  # natural dataset (raw or manually aggregated dataset)
     dataset()
   }
 })
 
-
-## reactive dataset used for plotting 
-## (filtered version of finalDF(), using xlim and ylim)
-plotDF <- reactive({
+# filtered version of aggDf() for plotting
+# plotAggMeth() -> semiAutoAggOn() -> aggDf() -> .
+aggLimDf <- reactive({
+  df <- aggDf()
+  search_columns <- input$displayTable_search_columns  # input$displayTable_rows_all
+  if (is.null(df)) return()
   
-  flog.debug("dataset::plotDF() - Begin", name='all')
-  
-  dataset <- finalDF()
-  if (is.null(dataset)){
-    flog.debug("dataset::plotDF() - is.null(dataset) - End", name='all')
-    return()
-  }
-  
-  ## subset with xlim filter (if applicable)
-  if (!is.null(xlim())) {
-    x <- input$x
-    if(is.null(x)){
-      flog.debug("dataset::plotDF() - is.null(x) - End", name='all')
-      return()
+  isolate({
+    fill_idxs <- if (!is.null(search_columns))
+      1:length(search_columns) %>% Filter(function(i) search_columns[i] != '',.) else c()
+    if (!length(fill_idxs)) {
+      reactVals$plotState$filter <- NULL
+      return(df)
     }
-    if (is.null(xType())){
-      flog.debug("dataset::plotDF() - is.null(xType()) - End", name='all')
-      return()
+    if (tolower(plotAggMeth()) != 'none') {
+      stop('Can not choose between aggregated and limited view')
     }
-    if (xType()=='continuous'){
-      flog.debug("dataset::plotDF() - xType()=='continuous'", name='all')
-      dataset <- dataset[dataset[[x]] >= xlim()[1] & dataset[[x]] <= xlim()[2], ]
+    
+    filter_keys <- names(isolate(manAggDataset()))[fill_idxs]
+    # search_columns[fill_idxs] ex: "[\"25-34\",\"35-44\"]" "18.18 ... 60.00"
+    filter_vals <- lapply(search_columns[fill_idxs], function(x) 
+      (if (startsWith(x, '[')) strsplit(substring(x, 2, nchar(x) - 1), ',') else 
+        strsplit(x, ' \\.{3} ')) %>% `[[`(1))
+    
+    reactVals$plotState$filter$keys <- filter_keys
+    reactVals$plotState$filter$vals <- filter_vals
+    
+    df_expr <- applied_filters_expr(df, datasetName(), filter_keys, filter_vals)
+    res <- eval(parse(text=df_expr))
+    if (!setequal(colnames(df), colnames(res))) {
+      stop('Looks like an aggregated and limited view collision')
     }
-    else if (xType()=='discrete'){
-      flog.debug("dataset::plotDF() - xType()=='discrete'", name='all')
-      dataset <- dataset[dataset[[x]] %in% xlim(), ]
-    }
-  }
-  
-  ## subset with ylim filter (if applicable)
-  if (!is.null(ylim())) {
-    flog.debug("dataset::plotDF() - !is.null(ylim())", name='all')
-    if (isXYCtrlPlot()) {
-      flog.debug("dataset::plotDF() - isXYCtrlPlot()", name='all')
-      y <- y()
-      if (is.null(y)){
-        flog.debug("dataset::plotDF() - is.null(y) - End)", name='all')
-        return()
-      }
-      if (is.null(yType())){
-        flog.debug("dataset::plotDF() - is.null(yType()) - End)", name='all')
-        return()
-      }
-      if (yType()=='continuous'){
-        flog.debug("dataset::plotDF() - yType()=='continuous'", name='all')
-        dataset <- dataset[dataset[[y]] >= ylim()[1] & dataset[[y]] <= ylim()[2], ]
-      }
-      else if (yType()=='discrete'){
-        flog.debug("dataset::plotDF() - yType()=='discrete'", name='all')
-        dataset <- dataset[dataset[[y]] %in% ylim(), ]
-      }
-    }
-  }
-  
-  flog.debug("dataset::plotDF() - End", name='all')
-  
-  return(dataset)
+    res
+  })
 })
 

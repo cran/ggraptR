@@ -4,7 +4,15 @@
 \alias{ggraptR}
 \title{Launch ggraptR in the default browser}
 \usage{
-ggraptR()
+ggraptR(initialDf = ggplot2::diamonds, ...)
+}
+\arguments{
+\item{initialDf}{initial dataframe to plot}
+
+\item{...}{extra arguments. Possible options are:
+initialPlot - a vector of plot names
+externalRun - a boolean to run ggraptR in a separate process
+any shiny::runApp arguments}
 }
 \description{
 Launch ggraptR in the default browser
@@ -14,7 +22,6 @@ See \url{http://github.com/cargomoose/raptR} for documentation and tutorials
 }
 \examples{
 if (interactive()) {
-  ggraptR()
+  ggraptR(initialDf='mtcars', initialPlot=c('Scatter', 'Line'), appDir='inst/ggraptR')
 }
 }
-

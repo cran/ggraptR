@@ -1,17 +1,16 @@
-## CSV download handler
+# CSV download handler
 output$dlCSV <- downloadHandler(
   filename = function() { 
     ts <- gsub(' |-|:', '', as.character(Sys.time()))
-    paste0('output_', ts, '.csv') 
+    paste0('output_', ts, '.csv')
   },
   content = function(file) {
-    write.csv(finalDF(), file, row.names=F)
-    #write.csv(dataset(), file, row.names=F)
+    write.csv(manAggDataset(), file, row.names=F)
   }
 )
 
 # file output
-output$dlPlot <- downloadHandler(
+output$dlPlotHandler <- downloadHandler(
   filename = function() {
     ts <- gsub(' |-|:', '', as.character(Sys.time()))
     paste0('output_', ts, input$fileType)
@@ -21,30 +20,37 @@ output$dlPlot <- downloadHandler(
     # Local variables assigned because updateNumericInput() execution takes places after
     # the completion of the calling function (ie. the updates will not be made in time for
     # the call to ggsave() and must be resolved locally)
-    inputWidth<-input$fileWidth
-    inputHeight<-input$fileHeight
-    inputDPI<-input$fileDPI
+    inputWidth <- input$fileWidth
+    inputHeight <- input$fileHeight
+    inputDPI <- input$fileDPI
+    fileDefault <- getFileDefault()
     
-    if (inputWidth < 0 || inputWidth > gcnFileWidthMax || !is.numeric(inputWidth))
-    {
-      updateNumericInput(session, "fileWidth", value = gcnFileWidthDefault)
-      inputWidth<-gcnFileWidthDefault
+    if (inputWidth < 0 || inputWidth > fileDefault$widthMax 
+        || !is.numeric(inputWidth)) {
+      updateNumericInput(session, "fileWidth", value=fileDefault$width)
+      inputWidth <- fileDefault$width
     }
-    if (inputHeight < 0 || inputHeight > gcnFileHeightMax || !is.numeric(inputHeight))
-    {
-      updateNumericInput(session, "fileHeight", value = gcnFileHeightDefault)
-      inputHeight<-gcnFileHeightDefault
+    if (inputHeight < 0 || inputHeight > fileDefault$heightMax 
+        || !is.numeric(inputHeight)) {
+      updateNumericInput(session, "fileHeight", value=fileDefault$height)
+      inputHeight <- fileDefault$height
     }
-    if (inputDPI < 0 || inputDPI > gcnFileDPIMax || !is.numeric(inputDPI))
-    {
-      updateNumericInput(session, "fileDPI", value = gcnFileDPIDefault)
-      inputHeight<-gcnFileDPIDefault
+    if (inputDPI < 0 || inputDPI > fileDefault$DPIMax || !is.numeric(inputDPI)) {
+      updateNumericInput(session, "fileDPI", value=fileDefault$DPI)
+      inputHeight <- fileDefault$DPI
     }
     
-    ggsave(file, plot = plotInput(), width=inputWidth, height=inputHeight, units="in", dpi=inputDPI)
+    if (plotTypes() == 'pairs') {
+      dev <- ggplot2:::plot_dev(NULL, file, inputDPI)
+      dev(file=file, width=inputWidth, height=inputHeight)
+      print(buildPlot())
+      dev.off()
+    } else
+      ggsave(file, plot=buildPlot(), width=inputWidth, height=inputHeight, 
+           units="in", dpi=inputDPI)
   }
 )
 
-## register the final dataset to be used upon AJAX call from UI
-action <- reactive({DT::dataTableAjax(session, finalDF())})
+# register the final dataset to be used upon AJAX call from UI
+action <- reactive({DT::dataTableAjax(session, aggDf())})
 

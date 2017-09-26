@@ -1,355 +1,252 @@
-#### current widget values
-
-## dataset name
+#### main ####
 datasetName <- reactive({
-  if (is.null(input$dataset)) return()
-  inpu$datasetName
+  input$datasetName
 })
 
-## plot type 
-plotType <- reactive({
-  if (is.null(input$plotType)) return()
-  input$plotType
+plotTypes <- reactive({
+  input$plotTypes
 })
 
-## x
+plotTypesOpts <- reactive({
+  reactVals$plotTypeOptsTrigger  # updates using an observer
+  isolate({
+    reactVals$is_dataset_changed <- F  # to distinguish plotTypes triggers
+    getPlotTypeOpts(plotTypes(), length(numericVars()), length(categoricalVars()))
+  })
+})
+
 x <- reactive({
-  if (is.null(input$x)) return()
   input$x
 })
 
-## y original 
 yOrig <- reactive({
-  if (is.null(input$y)) return()
   input$y
 })
 
-## y 
 y <- reactive({
-  if (is.null(input$y)) return()
-  if (is.null(plotAggMeth())) return()
-  if (is.null(finalDF())) return()
-  if (is.null(semiAutoAggOn())) return()
-  retval <- ensureProperVarName(colnames=colnames(finalDF()), var=input$y, aggMeth=plotAggMeth(), semiAutoAggOn=semiAutoAggOn())
-  retval
+  ensureProperVarName(colnames(isolate(aggDf())), yOrig(), 
+                      isolate(plotAggMeth()), semiAutoAggOn())
 })
 
-## color original 
+columns <- reactive({  # for pairsPlot
+  input$columns
+})
+
 colorOrig <- reactive({
-  if (is.null(input$color)) return()
   input$color
 })
 
-## color 
 color <- reactive({
-  if (is.null(plotDF())) return()
-  if (is.null(input$color)) return()
-  if (is.null(plotAggMeth())) return()
-  if (is.null(semiAutoAggOn())) return()
-  col <- ensureProperVarName(colnames=colnames(plotDF()), var=input$color, aggMeth=plotAggMeth(), semiAutoAggOn=semiAutoAggOn())  
-  col <- convertNoneToNULL(col)
-  col
+  convertNoneToNULL(ensureProperVarName(
+    isolate(colnames(aggLimDf())), colorOrig(), 
+            isolate(plotAggMeth()), isolate(semiAutoAggOn())))
 })
 
-## color as factor
-colorAsFactor <- reactive({
-  if (is.null(color())) return()
-  varNameAsFactorOrNULL(color())
+treatColorAsFactor <- reactive({
+  !is.null(input$treatColorAsFactor) && input$treatColorAsFactor
 })
 
-## treat as factor variable (for color)
-treatAsFacVarCol <- reactive({
-  if (is.null(input$treatAsFacVarCol)) return(FALSE)
-  input$treatAsFacVarCol
-})
-
-## size original 
-sizeOrig <- reactive({
-  if (is.null(input$size)) return()
-  input$size
-})
-
-## size 
-size <- reactive({
-  if (is.null(plotDF())) return()
-  if (is.null(input$size)) return()
-  if (is.null(plotAggMeth())) return()
-  if (is.null(semiAutoAggOn())) return()
-  sz <- ensureProperVarName(colnames=colnames(plotDF()), var=input$size, aggMeth=plotAggMeth(), semiAutoAggOn=semiAutoAggOn())
-  sz <- convertNoneToNULL(sz)
-  sz
-})
-
-## fill original
 fillOrig <- reactive({
-  if (is.null(input$fill)) return()
   input$fill
 })
 
-## fill 
 fill <- reactive({
-  if (is.null(input$fill)) return()
-  convertNoneToNULL(input$fill)
+  convertNoneToNULL(fillOrig())
 })
 
-## fill as factor
-fillAsFactor <- reactive({
-  if (is.null(fill())) return()
-  varNameAsFactorOrNULL(fill())  
+sizeOrig <- reactive({
+  input$size
 })
 
-## position 
-position <- reactive({
-  if (is.null(input$position)) return()
-  convertNoneToNULL(input$position)
+size <- reactive({
+  convertNoneToNULL(ensureProperVarName(
+    isolate(colnames(aggLimDf())), sizeOrig(), 
+    isolate(plotAggMeth()), isolate(semiAutoAggOn())))
 })
 
-## jitter original
-jitterOrig <- reactive({
-  if (is.null(input$jitter)) return()
-  input$jitter
-})
-
-## jitter 
-## should return either "jitter" or NULL
-## 07/01/2016 - jitter has become broken. for now we will always jitter
-jitter <- reactive({
-  if (is.null(input$jitter)) return('jitter')
-  jit <- input$jitter
-  if (jit) 
-    jit <- 'jitter' 
-  else 
-    jit <- 'jitter'
-  jit
-})
-
-## alpha original 
-alphaOrig <- reactive({
-  if (is.null(input$alpha)) return()
-  input$alpha
-})
-
-## alpha 
-alpha <- reactive({
-  if (is.null(input$alpha)) return(1)
-  input$alpha
-})
-
-## size magnifier original
-sizeMagOrig <- reactive({
-  if (is.null(input$sizeMag)) return()
-  input$sizeMag
-})
-
-## size magnifier 
-sizeMag <- reactive({
-  if (is.null(input$sizeMag)) return(4)
-  input$sizeMag
-})
-
-## density black line condition
-densBlkLineCond <- reactive({
-  if (is.null(input$densBlkLineCond)) return(FALSE)
-  input$densBlkLineCond
-})
-
-## shape original 
 shapeOrig <- reactive({
-  if (is.null(input$shape)) return()
   input$shape
 })
 
-## shape
 shape <- reactive({
-  if (is.null(input$shape)) return()
-  convertNoneToNULL(input$shape)
+  convertNoneToNULL(shapeOrig())
 })
 
-## shape as factor
-shapeAsFactor <- reactive({
-  if (is.null(shape())) return()
-  varNameAsFactorOrNULL(shape())
+position <- reactive({
+  convertNoneToNULL(input$position)
 })
 
-## smooth original 
+jitter <- reactive({
+  if (!is.null(input$jitter) && input$jitter) 'jitter' else 'identity'
+})
+
+coordFlip <- reactive({
+  !is.null(input$coordFlip) && input$coordFlip
+})
+
 smoothOrig <- reactive({
-  if (is.null(input$smooth)) return()
   input$smooth
 })
 
-## smooth
 smooth <- reactive({
-  if (is.null(input$smooth)) return()
   convertNoneToNULL(input$smooth)
 })
 
-## coordinate flip
-coordFlip <- reactive({
-  if (is.null(input$coordFlip)) return(FALSE)
-  input$coordFlip
+alphaOrig <- reactive({
+  input$alpha
 })
 
-## bin width
-binWidth <- reactive({
-  if (is.null(input$binWidth)) return()
-  input$binWidth
+alpha <- reactive({
+  if (is.null(alphaOrig())) 1 else alphaOrig()
 })
 
-## points overlay condition
-ptsOverlayCond <- reactive({
-  if (is.null(input$ptsOverlayCond)) return(FALSE)
-  input$ptsOverlayCond
+sizeMagOrig <- reactive({
+  input$sizeMag
 })
 
-## facet row original 
+sizeMag <- reactive({
+  if (is.null(input$sizeMag)) 4 else input$sizeMag
+})
+
+nBins <- reactive({
+  input$nBins
+})
+
+densBlackLine <- reactive({
+  input$densBlackLine
+})
+
+
+#### pairs ####
+pairsUpCont <- reactive({
+  input$pairsUpCont
+})
+
+pairsUpCombo <- reactive({
+  input$pairsUpCombo
+})
+
+pairsUpDiscr <- reactive({
+  input$pairsUpDiscr
+})
+
+pairsDiagCont <- reactive({
+  input$pairsDiagCont
+})
+
+pairsDiagDiscr <- reactive({
+  input$pairsDiagDiscr
+})
+
+pairsLowCont <- reactive({
+  input$pairsLowCont
+})
+
+pairsLowCombo <- reactive({
+  input$pairsLowCombo
+})
+
+pairsLowDiscr <- reactive({
+  input$pairsLowDiscr
+})
+
+
+#### facets ####
 facetRowOrig <- reactive({
-  if (is.null(input$facetRow)) return()
   input$facetRow
 })
 
-## facet row
 facetRow <- reactive({
-  if (is.null(plotDF()) | is.null(input$facetRow)) return('.')
-  fr <- ifelse(input$facetRow=='None', '.', input$facetRow)
-  if (fr != '.' & fr %in% colnames(plotDF())) return(fr)
-  else return('.')
+  aggLimDf <- aggLimDf()
+  if (anyNull(aggLimDf, input$facetRow)) return('.')
+  fr <- if (input$facetRow == 'None') '.' else input$facetRow
+  if (fr != '.' && fr %in% colnames(aggLimDf)) fr else '.'
 })
 
-## facet col original 
 facetColOrig <- reactive({
-  if (is.null(input$facetCol)) return()
   input$facetCol
 })
 
-## facet column
 facetCol <- reactive({
-  if (is.null(plotDF()) | is.null(input$facetCol)) return('.')
-  fc <- ifelse(input$facetCol=='None', '.', input$facetCol)
-  if (fc != '.' & fc %in% colnames(plotDF())) return(fc)
-  else return('.')
+  aggLimDf <- aggLimDf()
+  if (anyNull(aggLimDf, input$facetCol)) return('.')
+  fc <- if (input$facetCol == 'None') '.' else input$facetCol
+  if (fc != '.' && fc %in% colnames(aggLimDf)) fc else '.'
 }) 
 
-## facet wrap original 
 facetWrapOrig <- reactive({
-  if (is.null(input$facetWrap)) return()
   input$facetWrap
 })
 
-## facet wrap
 facetWrap <- reactive({
-  if (is.null(plotDF()) | is.null(input$facetWrap)) return('.')
+  aggLimDf <- aggLimDf()
+  if (anyNull(aggLimDf, input$facetWrap)) return('.')
   fw <- ifelse(input$facetWrap=='None', '.', input$facetWrap)
-  if (fw != '.' & fw %in% colnames(plotDF())) return(fw)
-  else return('.')
+  if (fw != '.' && fw %in% colnames(aggLimDf)) fw else '.'
 })
 
-## facet scale
 facetScale <- reactive({
-  if (is.null(input$facetScale)) return('none')
-  input$facetScale
+  if (is.null(input$facetScale)) 'none' else input$facetScale
 })
 
-## facet grids
 facetGrids <- reactive({
-  if (is.null(facetRow()) | is.null(facetCol())) return('. ~ .')
-  paste(facetRow(), '~', facetCol())
-})
-
-## xlim
-xlim <- reactive({
-  if (is.null(input$xlim)) return()
-  input$xlim
-})
-
-## ylim
-ylim <- reactive({
-  if (is.null(input$ylim)) return()
-  input$ylim
+  row <- facetRow()
+  col <- facetCol()
+  if (anyNull(row, col)) '. ~ .' else paste(row, '~', col)
 })
 
 
-
-
-
-## plot title
+#### theme ####
 plotTitle <- reactive({
-  if (is.null(input$plotTitle)) return()
   input$plotTitle
 })
 
-## x label
 xLabel <- reactive({
-  if (is.null(input$xLabel)) return()
   input$xLabel
 })
 
-## y label
 yLabel <- reactive({
-  if (is.null(input$yLabel)) return()
   input$yLabel
 })
 
-## label font family
 labelFontFamily <- reactive({
-  if (is.null(input$labelFontFamily)) return()
   input$labelFontFamily
 })
 
-## label font family
 labelFontFace <- reactive({
-  if (is.null(input$labelFontFace)) return()
   input$labelFontFace
 })
 
-## label font size
 labelFontSize <- reactive({
-  if (is.null(input$labelFontSize)) return(15)
-  input$labelFontSize
+  if (is.null(input$labelFontSize)) 15 else input$labelFontSize
 })
 
-## label font color
 labelFontColor <- reactive({
-  if (is.null(input$labelFontColor)) return('black')
-  input$labelFontColor
+  if (is.null(input$labelFontColor)) 'black' else input$labelFontColor
 })
 
-## hjust
 hjust <- reactive({
-  if (is.null(input$hjust)) return(0.5)
-  input$hjust
+  if (is.null(input$hjust)) 0.5 else input$hjust
 })
 
-## vjust
 vjust <- reactive({
-  if (is.null(input$vjust)) return(0.5)
-  input$vjust
+  if (is.null(input$vjust)) 0.5 else input$vjust
 })
 
-## plot theme
 plotTheme <- reactive({
-  if (is.null(input$plotTheme)) return('theme_grey')
-  input$plotTheme
+  if (is.null(input$plotTheme)) 'theme_grey' else input$plotTheme
 })
 
 
-## plot agg method
-plotAggMeth <- reactive({
-  if (is.null(input$plotAggMeth)) return('none')
-  input$plotAggMeth
-})
-
-## raw or man agg dataset type
+#### aggregations ####
 rawVsManAgg <- reactive({
-  if (is.null(input$rawVsManAgg)) return()
   input$rawVsManAgg
 })
 
-## plot additional aggregation-by
-plotAddAggBy <- reactive({
-  if (is.null(input$plotAddAggBy)) return()
-  input$plotAddAggBy
+plotAggMeth <- reactive({
+  if (is.null(input$plotAggMeth)) 'none' else input$plotAggMeth
 })
 
-
-
-
+plotAddAggBy <- reactive({
+  input$plotAddAggBy
+})
