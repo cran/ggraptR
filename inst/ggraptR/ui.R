@@ -1,5 +1,4 @@
-library(shinyBS)
-library(shinyjs)
+pacman::p_load(shinyBS, shinyjs, DT)
 
 shinyUI(bootstrapPage(
   headerPanel(windowTitle="ggraptR", title=div()),
@@ -9,7 +8,7 @@ shinyUI(bootstrapPage(
     ".sbs-panel-group {margin-bottom: 5px;}",
     # ".shiny-split-layout #datasetNameCtrl { overflow: visible; }",
     "#rappy img {max-width: 100%;}"  # "#react_row {max-width: 100%;}"
-    )),
+  )),
   
   sidebarPanel(
     splitLayout(
@@ -19,14 +18,15 @@ shinyUI(bootstrapPage(
         # use shinyjs to disable/enable buttons w/ JS
         useShinyjs(),
         
-        fluidRow(
-          column(9, uiOutput('datasetNameCtrl'),
-                 style="padding-right:5px; height: 0px"),
-          column(2,
-                 uiOutput('uploadDataCtrl', inline = T),
-                 uiOutput('datasetOptionsCtrl', inline = T),
-                 style="padding-top:25px;padding-left:5px;"),
-          style='width:100%'),
+        div(
+          uiOutput(
+            'datasetNameCtrl', style = paste(
+              'float: left; margin-right: 83px; width:-webkit-fill-available;
+              white-space: nowrap;')),
+          div(
+            uiOutput('uploadDataCtrl', inline = T),
+            uiOutput('datasetOptionsCtrl', inline = T),
+            style='float: left; margin-left: -79px; padding-top: 25px')),
         
         conditionalPanel(
           condition = 'input.conditionedPanels == "tableTab"',
@@ -36,16 +36,16 @@ shinyUI(bootstrapPage(
           condition = 'input.conditionedPanels != "codeTab"',
           hr(),
           fluidRow(
-            column(6, uiOutput('submitCtrl')), 
+            column(6, uiOutput('submitCtrl', style='overflow:hidden')), 
             column(6, uiOutput('reactiveCtrl')),
             id='react_row'), 
-          actionButton("reset_input", "Reset inputs", width = "100%")),
+          actionButton("reset_input", "Reset inputs", icon=icon("refresh"), width = "100%")),
         
         conditionalPanel(
           condition = 'input.conditionedPanels == "codeTab"',
           div(br(), style='padding-bottom: 120px')),
         
-        style='padding-left: 10px; padding-right: 3px; overflow: hidden;')),
+        style='padding-left: 10px; padding-right: 4px; overflow: -webkit-paged-x; white-space: normal')),
     hr(),
     
     #### left controls ####
