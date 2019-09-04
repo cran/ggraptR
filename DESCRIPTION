@@ -2,7 +2,7 @@ Package: ggraptR
 Type: Package
 Title: Allows Interactive Visualization of Data Through a Web Browser
         GUI
-Version: 1.1
+Version: 1.2
 Authors@R: 
     c(person("Eugene", "Dubossarsky", role=c("aut", "cph", "cre"),
              email="eugene@presciient.com"),
@@ -23,7 +23,7 @@ BugReports: https://github.com/cargomoose/raptR/issues
 VignetteBuilder: knitr
 RoxygenNote: 6.0.1
 NeedsCompilation: no
-Packaged: 2018-07-02 09:30:05 UTC; juliux
+Packaged: 2019-09-04 11:47:50 UTC; juliux
 Author: Eugene Dubossarsky [aut, cph, cre],
   Julius Neggo [ctb] (Lead Developer),
   Howard Song [aut] (Developer),
@@ -33,4 +33,4 @@ Author: Eugene Dubossarsky [aut, cph, cre],
   Sergey Skripko [ctb] (Developer)
 Maintainer: Eugene Dubossarsky <eugene@presciient.com>
 Repository: CRAN
-Date/Publication: 2018-07-02 09:50:03 UTC
+Date/Publication: 2019-09-04 20:50:03 UTC
