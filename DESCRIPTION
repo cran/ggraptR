@@ -2,7 +2,7 @@ Package: ggraptR
 Type: Package
 Title: Allows Interactive Visualization of Data Through a Web Browser
         GUI
-Version: 1.2
+Version: 1.3
 Authors@R: 
     c(person("Eugene", "Dubossarsky", role=c("aut", "cph", "cre"),
              email="eugene@presciient.com"),
@@ -16,14 +16,14 @@ Description: Intended for both technical and non-technical users to create
     interactive data visualizations through a web browser GUI without writing any
     code.
 License: GPL (>= 2)
-Suggests: knitr
+Suggests: knitr, markdown
 Depends: dplyr (>= 0.7.5), ggplot2 (>= 2.2.0), pacman (>= 0.4.6),
         purrr(>= 0.2.4), shiny (>= 0.12.2)
 BugReports: https://github.com/cargomoose/raptR/issues
 VignetteBuilder: knitr
 RoxygenNote: 6.0.1
 NeedsCompilation: no
-Packaged: 2019-09-04 11:47:50 UTC; juliux
+Packaged: 2020-06-24 01:11:17 UTC; juliux
 Author: Eugene Dubossarsky [aut, cph, cre],
   Julius Neggo [ctb] (Lead Developer),
   Howard Song [aut] (Developer),
@@ -33,4 +33,4 @@ Author: Eugene Dubossarsky [aut, cph, cre],
   Sergey Skripko [ctb] (Developer)
 Maintainer: Eugene Dubossarsky <eugene@presciient.com>
 Repository: CRAN
-Date/Publication: 2019-09-04 20:50:03 UTC
+Date/Publication: 2020-06-24 05:00:03 UTC
